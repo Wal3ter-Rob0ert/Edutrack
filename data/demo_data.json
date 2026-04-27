@@ -1,0 +1,273 @@
+{
+  "student": {
+    "name": "Aidyn Abenov",
+    "class": "11B",
+    "school": "Quantum STEM School",
+    "school_year": "2024/2025",
+    "semester": "Spring"
+  },
+  "months": [
+    "January",
+    "February",
+    "March",
+    "April"
+  ],
+  "attendance": {
+    "summary": {
+      "total_days": 80,
+      "present_days": 71,
+      "absent_days": 9
+    },
+    "breakdown": {
+      "excused": 6,
+      "unexcused": 3,
+      "late_arrivals": 4
+    },
+    "monthly": [
+      {
+        "month": "January",
+        "present": 18,
+        "absent": 2,
+        "excused": 1,
+        "unexcused": 1,
+        "late_arrivals": 1
+      },
+      {
+        "month": "February",
+        "present": 17,
+        "absent": 3,
+        "excused": 2,
+        "unexcused": 1,
+        "late_arrivals": 1
+      },
+      {
+        "month": "March",
+        "present": 18,
+        "absent": 2,
+        "excused": 2,
+        "unexcused": 0,
+        "late_arrivals": 1
+      },
+      {
+        "month": "April",
+        "present": 18,
+        "absent": 2,
+        "excused": 1,
+        "unexcused": 1,
+        "late_arrivals": 1
+      }
+    ]
+  },
+  "subjects": [
+    {
+      "id": "math",
+      "name": "Mathematics",
+      "teacher": "Mr. Horak",
+      "color": "#ef4444",
+      "absences": 3,
+      "monthly_trend": [
+        {
+          "month": "January",
+          "average": 72
+        },
+        {
+          "month": "February",
+          "average": 68
+        },
+        {
+          "month": "March",
+          "average": 64
+        },
+        {
+          "month": "April",
+          "average": 61
+        }
+      ],
+      "assessments": [
+        {
+          "month": "January",
+          "type": "FA",
+          "title": "Algebra Quiz",
+          "score": 74
+        },
+        {
+          "month": "January",
+          "type": "SAQ",
+          "title": "Homework Check",
+          "score": 70
+        },
+        {
+          "month": "February",
+          "type": "FA",
+          "title": "Functions Test",
+          "score": 69
+        },
+        {
+          "month": "March",
+          "type": "SA",
+          "title": "Midterm Exam",
+          "score": 62
+        },
+        {
+          "month": "April",
+          "type": "FA",
+          "title": "Statistics Test",
+          "score": 61
+        }
+      ]
+    },
+    {
+      "id": "english",
+      "name": "English Language",
+      "teacher": "Ms. White",
+      "color": "#22c55e",
+      "absences": 1,
+      "monthly_trend": [
+        {
+          "month": "January",
+          "average": 88
+        },
+        {
+          "month": "February",
+          "average": 90
+        },
+        {
+          "month": "March",
+          "average": 91
+        },
+        {
+          "month": "April",
+          "average": 89
+        }
+      ],
+      "assessments": [
+        {
+          "month": "January",
+          "type": "FA",
+          "title": "Reading Task",
+          "score": 86
+        },
+        {
+          "month": "February",
+          "type": "SAQ",
+          "title": "Speaking Practice",
+          "score": 91
+        },
+        {
+          "month": "March",
+          "type": "SA",
+          "title": "Unit Test",
+          "score": 92
+        },
+        {
+          "month": "April",
+          "type": "FA",
+          "title": "Writing Assignment",
+          "score": 89
+        }
+      ]
+    },
+    {
+      "id": "physics",
+      "name": "Physics",
+      "teacher": "Ms. Kovacs",
+      "color": "#f97316",
+      "absences": 2,
+      "monthly_trend": [
+        {
+          "month": "January",
+          "average": 67
+        },
+        {
+          "month": "February",
+          "average": 70
+        },
+        {
+          "month": "March",
+          "average": 66
+        },
+        {
+          "month": "April",
+          "average": 69
+        }
+      ],
+      "assessments": [
+        {
+          "month": "January",
+          "type": "FA",
+          "title": "Mechanics Quiz",
+          "score": 66
+        },
+        {
+          "month": "February",
+          "type": "SAQ",
+          "title": "Lab Viva",
+          "score": 72
+        },
+        {
+          "month": "March",
+          "type": "SA",
+          "title": "Electricity Test",
+          "score": 65
+        },
+        {
+          "month": "April",
+          "type": "FA",
+          "title": "Revision Quiz",
+          "score": 69
+        }
+      ]
+    },
+    {
+      "id": "history",
+      "name": "History",
+      "teacher": "Mr. Sedlak",
+      "color": "#3b82f6",
+      "absences": 3,
+      "monthly_trend": [
+        {
+          "month": "January",
+          "average": 78
+        },
+        {
+          "month": "February",
+          "average": 80
+        },
+        {
+          "month": "March",
+          "average": 76
+        },
+        {
+          "month": "April",
+          "average": 82
+        }
+      ],
+      "assessments": [
+        {
+          "month": "January",
+          "type": "FA",
+          "title": "Source Analysis",
+          "score": 76
+        },
+        {
+          "month": "February",
+          "type": "SAQ",
+          "title": "Class Discussion",
+          "score": 81
+        },
+        {
+          "month": "March",
+          "type": "FA",
+          "title": "Cold War Quiz",
+          "score": 75
+        },
+        {
+          "month": "April",
+          "type": "SA",
+          "title": "Modern History Test",
+          "score": 84
+        }
+      ]
+    }
+  ]
+}

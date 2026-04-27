@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EduTrack — Student Monitoring System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1d70b8;
+  --blue-dark:#003078;
+  --white:#ffffff;
+  --gray-100:#f3f2f1;
+  --gray-200:#e8e8e8;
+  --gray-300:#b1b4b6;
+  --gray-400:#6f777b;
+  --gray-500:#505a5f;
+  --black:#0b0c0c;
+  --red:#d4351c;
+  --red-bg:#fff2f1;
+  --green:#00703c;
+  --green-bg:#e9f4ee;
+  --orange:#f47738;
+  --yellow:#ffdd00;
+  --sidebar-w:240px;
+  --header-h:56px;
+  --footer-h:52px;
+}
+html,body{height:100%;font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:var(--black);background:var(--white)}
+*:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+a{color:var(--blue);text-decoration:underline}
+a:hover{color:var(--blue-dark)}
+
+/* ── Layout ── */
+#app{display:flex;flex-direction:column;min-height:100vh}
+
+.site-header{
+  background:var(--blue-dark);color:var(--white);
+  height:var(--header-h);display:flex;align-items:center;
+  padding:0 24px;position:fixed;top:0;left:0;right:0;z-index:200;
+  border-bottom:4px solid var(--blue);
+}
+.site-header__logo{font-size:1.125rem;font-weight:700;color:var(--white);text-decoration:none;letter-spacing:.03em}
+.site-header__tag{margin-left:12px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-300);border-left:1px solid #3a5a8a;padding-left:12px}
+.site-header__user{margin-left:auto;font-size:.875rem;color:var(--gray-300)}
+
+.sidebar{
+  width:var(--sidebar-w);background:var(--gray-100);
+  border-right:2px solid var(--gray-200);
+  position:fixed;top:var(--header-h);bottom:var(--footer-h);left:0;
+  overflow-y:auto;padding-top:8px;z-index:100;
+}
+.sidebar.hidden{display:none}
+.sidebar__section{padding-bottom:8px}
+.sidebar__label{display:block;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);padding:12px 20px 4px}
+.sidebar__link{
+  display:block;padding:10px 20px;font-size:.9375rem;
+  color:var(--blue-dark);text-decoration:none;
+  border-left:4px solid transparent;font-weight:400;
+}
+.sidebar__link:hover{background:var(--gray-200);border-left-color:var(--blue)}
+.sidebar__link.active{background:var(--white);border-left-color:var(--blue-dark);font-weight:700;color:var(--black);text-decoration:none}
+
+.main-wrapper{display:flex;flex:1;margin-top:var(--header-h);margin-bottom:var(--footer-h)}
+.content{flex:1;padding:32px;overflow-y:auto;margin-left:var(--sidebar-w)}
+.content.no-sidebar{margin-left:0}
+
+.site-footer{
+  position:fixed;bottom:0;left:0;right:0;height:var(--footer-h);
+  background:var(--gray-100);border-top:2px solid var(--gray-200);
+  display:flex;align-items:center;padding:0 24px;z-index:200;
+}
+.site-footer__text{font-size:.875rem;color:var(--gray-500)}
+.site-footer__actions{margin-left:auto}
+
+/* ── Typography ── */
+h1{font-size:1.875rem;font-weight:700;line-height:1.2;margin-bottom:4px}
+h2{font-size:1.375rem;font-weight:700;line-height:1.25;margin-bottom:12px}
+h3{font-size:1.0625rem;font-weight:700;margin-bottom:8px}
+p{margin-bottom:12px}
+.page-heading{margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid var(--gray-200)}
+.page-heading__meta{font-size:.9rem;color:var(--gray-500);margin-top:4px;margin-bottom:0}
+
+/* ── Buttons ── */
+.btn{
+  display:inline-block;padding:9px 22px;font-size:1rem;font-weight:700;
+  cursor:pointer;border:2px solid transparent;font-family:inherit;
+  text-decoration:none;line-height:1.4;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--blue);color:var(--white);border-color:var(--blue)}
+.btn-primary:hover{background:var(--blue-dark);border-color:var(--blue-dark);color:var(--white)}
+.btn-secondary{background:var(--white);color:var(--blue-dark);border-color:var(--blue-dark)}
+.btn-secondary:hover{background:var(--blue-dark);color:var(--white)}
+.btn-sm{padding:5px 14px;font-size:.875rem}
+
+/* ── Forms ── */
+.form-group{margin-bottom:20px}
+.form-label{display:block;font-weight:700;font-size:1rem;margin-bottom:4px}
+.form-hint{display:block;font-size:.875rem;color:var(--gray-500);margin-bottom:6px}
+.form-input{
+  display:block;width:100%;max-width:400px;
+  padding:8px 12px;font-size:1rem;font-family:inherit;
+  border:2px solid var(--black);background:var(--white);color:var(--black);
+}
+.form-input:focus{outline:3px solid var(--yellow);outline-offset:0}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:2px 8px;font-size:.8125rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.badge-high{background:var(--red);color:var(--white)}
+.badge-medium{background:var(--orange);color:var(--white)}
+.badge-low{background:var(--green);color:var(--white)}
+.badge-info{background:var(--blue);color:var(--white)}
+
+/* ── Alerts ── */
+.alert{border-left:4px solid;padding:12px 16px;margin-bottom:12px;font-size:.9375rem}
+.alert-danger{border-color:var(--red);background:var(--red-bg)}
+.alert-warning{border-color:var(--orange);background:#fff8f4}
+.alert-success{border-color:var(--green);background:var(--green-bg)}
+.alert-info{border-color:var(--blue);background:#e8f0fb}
+
+/* ── Stats grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px}
+.stat-box{border:2px solid var(--gray-200);padding:16px;background:var(--white)}
+.stat-box.danger{border-color:var(--red)}
+.stat-box__label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);margin-bottom:6px}
+.stat-box__value{font-size:1.875rem;font-weight:700;color:var(--blue-dark);line-height:1}
+.stat-box.danger .stat-box__value{color:var(--red)}
+.stat-box__sub{font-size:.8125rem;color:var(--gray-400);margin-top:4px}
+
+/* ── Tables ── */
+.data-table{width:100%;border-collapse:collapse;font-size:.9375rem;margin-bottom:24px}
+.data-table th{background:var(--blue-dark);color:var(--white);text-align:left;padding:10px 14px;font-size:.8125rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.data-table td{padding:10px 14px;border-bottom:1px solid var(--gray-200);vertical-align:top}
+.data-table tr:nth-child(even) td{background:var(--gray-100)}
+.data-table tr:hover td{background:#dce8f5}
+
+/* ── Panel ── */
+.panel{border:1px solid var(--gray-200);padding:20px;margin-bottom:16px;background:var(--white)}
+.panel-blue{border-left:4px solid var(--blue)}
+.panel-red{border-left:4px solid var(--red)}
+.panel-green{border-left:4px solid var(--green)}
+
+/* ── Profile fields ── */
+.profile-row{display:flex;border-bottom:1px solid var(--gray-200)}
+.profile-row__key{min-width:180px;flex-shrink:0;padding:10px 0;font-size:.8125rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-500)}
+.profile-row__val{padding:10px 16px;font-size:1rem;color:var(--black)}
+
+/* ── Charts ── */
+.chart-wrap{position:relative;height:280px;margin-bottom:24px}
+.chart-wrap canvas{max-height:100%}
+
+/* ── Utility ── */
+.section-sep{border:0;border-top:2px solid var(--gray-200);margin:28px 0}
+.text-danger{color:var(--red)}
+.text-success{color:var(--green)}
+.text-muted{color:var(--gray-500)}
+.text-mono{font-family:'Courier New',monospace;font-size:.875rem}
+.mb-0{margin-bottom:0}
+.flex-between{display:flex;justify-content:space-between;align-items:flex-start}
+.hidden{display:none!important}
+
+/* ── Welcome ── */
+.welcome-outer{display:flex;justify-content:center;padding:48px 32px}
+.welcome-box{max-width:580px;width:100%}
+.welcome-box .sys-tag{display:block;font-size:.8125rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gray-500);margin-bottom:20px;border-left:4px solid var(--blue);padding-left:12px}
+.welcome-box h1{font-size:2.25rem;margin-bottom:16px}
+.welcome-box .lead{font-size:1.0625rem;color:var(--gray-500);margin-bottom:28px;line-height:1.65}
+.feature-list{list-style:none;margin-bottom:32px;border-top:1px solid var(--gray-200)}
+.feature-list li{padding:10px 0;border-bottom:1px solid var(--gray-200);font-size:.9375rem;color:var(--gray-500)}
+.feature-list li::before{content:"→ ";color:var(--blue);font-weight:700}
+
+/* ── Login ── */
+.login-outer{padding:40px 32px;max-width:480px}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .content{margin-left:0}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="site-header">
+    <a href="#/" class="site-header__logo">EduTrack</a>
+    <span class="site-header__tag">Student Monitoring System</span>
+    <span class="site-header__user" id="header-user"></span>
+  </header>
+
+  <nav class="sidebar hidden" id="sidebar" aria-label="Main navigation">
+    <div class="sidebar__section">
+      <span class="sidebar__label">Student Record</span>
+      <a href="#/cabinet"    class="sidebar__link" data-route="cabinet">Personal Cabinet</a>
+      <a href="#/analytics"  class="sidebar__link" data-route="analytics">Academic Analytics</a>
+      <a href="#/attendance" class="sidebar__link" data-route="attendance">Attendance &amp; Behaviour</a>
+    </div>
+    <div class="sidebar__section">
+      <span class="sidebar__label">System</span>
+      <a href="#/" class="sidebar__link" id="logout-link">Log Out</a>
+    </div>
+  </nav>
+
+  <div class="main-wrapper">
+    <main class="content no-sidebar" id="main-content" tabindex="-1"></main>
+  </div>
+
+  <footer class="site-footer">
+    <span class="site-footer__text">EduTrack v1.0 &mdash; Authorised Access Only</span>
+    <div class="site-footer__actions">
+      <button class="btn btn-secondary btn-sm" id="export-btn">Export to CSV</button>
+    </div>
+  </footer>
+
+</div>
+<script>
+// =============================================================================
+// STUDENT DATA — single source of truth for all charts, tables, and UI.
+// Shape mirrors data/demo_data.json so the backend can return the same structure.
+//
+// Future backend integration: replace STUDENT_DATA with the response from
+// fetch('/api/student') in Flask app.py, which reads data/demo_data.json.
+// See initApp() at the bottom for the exact integration point.
+// =============================================================================
+const STUDENT_DATA = {
+
+  // Future backend: maps to demo_data.json → "student"
+  student: {
+    name:     "Aidyn Abenov",
+    class:    "11B",
+    id:       "STU-2024-0042",
+    school:   "Quantum STEM School",
+    year:     "2024/2025",
+    semester: "Spring",
+    tutor:    "Ms. Petrova",
+    dob:      "12 March 2007",
+  },
+
+  // Future backend: maps to demo_data.json → "months"
+  months: ["January","February","March","April"],
+
+  // Future backend: maps to demo_data.json → "subjects"
+  subjects: [
+    {
+      id:"math", name:"Mathematics", teacher:"Bagdat Doshanov",
+      color:"#d4351c", absences:3,
+      monthly:[72,68,64,61],
+      assessments:[
+        {month:"January", type:"FA",  title:"Algebra Quiz",    score:74},
+        {month:"January", type:"SAQ", title:"Homework Check",  score:70},
+        {month:"February",type:"SA",  title:"Mid-Term Test",   score:66},
+        {month:"February",type:"FA",  title:"Functions Quiz",  score:64},
+        {month:"March",   type:"SAQ", title:"Problem Set",     score:65},
+        {month:"March",   type:"SA",  title:"Unit Test",       score:62},
+        {month:"April",   type:"FA",  title:"Geometry Quiz",   score:61},
+        {month:"April",   type:"SAQ", title:"Homework Check",  score:60},
+      ],
+    },
+    {
+      id:"physics", name:"Physics", teacher:"Nazymgul Karimova",
+      color:"#1d70b8", absences:2,
+      monthly:[78,80,79,82],
+      assessments:[
+        {month:"January", type:"FA", title:"Kinematics Quiz", score:78},
+        {month:"February",type:"SA", title:"Mechanics Test",  score:80},
+        {month:"March",   type:"FA", title:"Energy Quiz",     score:79},
+        {month:"April",   type:"SA", title:"Wave Test",       score:82},
+      ],
+    },
+    {
+      id:"chemistry", name:"Chemistry", teacher:"Andrey Leven",
+      color:"#912b88", absences:5,
+      monthly:[85,78,72,69],
+      assessments:[
+        {month:"January", type:"SA", title:"Periodic Table Test", score:85},
+        {month:"February",type:"FA", title:"Bonding Quiz",        score:78},
+        {month:"March",   type:"SA", title:"Reactions Test",      score:72},
+        {month:"April",   type:"FA", title:"Organic Quiz",        score:69},
+      ],
+    },
+    {
+      id:"english", name:"English", teacher:"Aigul Sarken",
+      color:"#00703c", absences:1,
+      monthly:[88,90,91,93],
+      assessments:[
+        {month:"January", type:"SAQ", title:"Essay Draft",        score:87},
+        {month:"February",type:"SA",  title:"Comprehension Test", score:90},
+        {month:"March",   type:"FA",  title:"Grammar Quiz",       score:91},
+        {month:"April",   type:"SA",  title:"Literature Essay",   score:93},
+      ],
+    },
+    {
+      id:"history", name:"History", teacher:"Mr. Vasile",
+      color:"#f47738", absences:2,
+      monthly:[74,71,73,70],
+      assessments:[
+        {month:"January", type:"SA", title:"WWI Test",            score:74},
+        {month:"February",type:"FA", title:"WWII Quiz",           score:71},
+        {month:"March",   type:"SA", title:"Cold War Test",       score:73},
+        {month:"April",   type:"FA", title:"Modern History Quiz", score:70},
+      ],
+    },
+  ],
+
+  // Future backend: maps to demo_data.json → "attendance"
+  attendance: {
+    summary: {total:80, present:71, absent:9},
+    monthly: [
+      {month:"January", present:18,absent:2,excused:1,unexcused:1,late:1},
+      {month:"February",present:17,absent:3,excused:2,unexcused:1,late:1},
+      {month:"March",   present:18,absent:2,excused:2,unexcused:0,late:1},
+      {month:"April",   present:18,absent:2,excused:1,unexcused:1,late:1},
+    ],
+    log: [
+      {date:"Jan 15",subject:"Mathematics",type:"Unexcused",    note:"No notification received"},
+      {date:"Jan 22",subject:"Chemistry",  type:"Excused",      note:"Medical certificate submitted"},
+      {date:"Feb 03",subject:"Mathematics",type:"Unexcused",    note:"No notification received"},
+      {date:"Feb 14",subject:"Chemistry",  type:"Excused",      note:"Family emergency"},
+      {date:"Feb 19",subject:"Physics",    type:"Excused",      note:"Medical certificate submitted"},
+      {date:"Mar 06",subject:"Chemistry",  type:"Excused",      note:"Medical certificate submitted"},
+      {date:"Mar 21",subject:"History",    type:"Unexcused",    note:"No notification received"},
+      {date:"Apr 09",subject:"Mathematics",type:"Late Arrival", note:"30 minutes late, no prior notice"},
+      {date:"Apr 24",subject:"Chemistry",  type:"Unexcused",    note:"No notification received"},
+    ],
+  },
+
+  // Future backend: maps to demo_data.json → "behaviour"
+  behaviour: [
+    {date:"Jan 29",type:"Note",        subject:"Mathematics",teacher:"Bagdat Doshanov", desc:"Disrupting class during test preparation."},
+    {date:"Feb 12",type:"Concern",     subject:"Chemistry",  teacher:"Andrey Leven",    desc:"Missed lab safety briefing due to absence. Required to attend makeup session."},
+    {date:"Mar 17",type:"Commendation",subject:"English",    teacher:"Aigul Sarken",    desc:"Outstanding essay submission — selected for school publication."},
+  ],
+
+  // Future backend: maps to demo_data.json → "teacher_notes"
+  teacher_notes: [
+    {from:"Bagdat Doshanov", subject:"Mathematics",date:"Apr 20",note:"Aidyn shows difficulty with calculus fundamentals. Attendance gaps are contributing to missed content. Recommend additional tutoring sessions."},
+    {from:"Aigul Sarken",    subject:"English",    date:"Apr 18",note:"Excellent progress this semester. Aidyn demonstrates strong analytical skills. Encourage participation in the school debate team."},
+    {from:"Andrey Leven",    subject:"Chemistry",  date:"Apr 15",note:"Performance has declined since February. Absences are directly impacting lab practicals. Parents should be informed of current trajectory."},
+  ],
+
+  // Derived fields — populated by initDerivedData() below.
+  // Future backend: app.py may pre-compute these and include them in the API
+  // response under the same keys. If so, remove the initDerivedData() call in
+  // initApp() and use the values from the fetch response directly.
+  risk_flags: [], // [{ subject, level, reason }]
+  insights:   [], // [{ cls, txt }]  cls = "danger" | "warning" | "success"
+};
+
+// =============================================================================
+// DERIVED DATA — computes risk_flags and insights from STUDENT_DATA at startup.
+//
+// Future backend: if /api/student already returns risk_flags and insights,
+// remove this function and delete its call from initApp() below.
+// =============================================================================
+function initDerivedData() {
+  const { subjects, attendance } = STUDENT_DATA;
+
+  subjects.forEach(s => {
+    const r   = riskLevel(s);
+    const t   = trendLabel(s);
+    const a   = subAvg(s);
+    const lo  = s.monthly[0];
+    const hi  = s.monthly[s.monthly.length - 1];
+
+    if (r === "High") {
+      STUDENT_DATA.risk_flags.push({
+        subject: s.name, level: "High",
+        reason: `Average ${a}, ${s.absences} absence${s.absences !== 1 ? "s" : ""} this semester.`,
+      });
+      STUDENT_DATA.insights.push({
+        cls: "danger",
+        txt: `${s.name} is flagged HIGH RISK — average ${a}, ${s.absences} absence${s.absences !== 1 ? "s" : ""} this semester.`,
+      });
+    } else if (t === "Declining" && s.absences >= 2) {
+      STUDENT_DATA.risk_flags.push({subject:s.name, level:"Medium", reason:`Declining trend correlates with ${s.absences} absences.`});
+      STUDENT_DATA.insights.push({cls:"warning", txt:`${s.name}: declining trend (${lo}→${hi}) correlates with ${s.absences} absences.`});
+    } else if (t === "Declining") {
+      STUDENT_DATA.insights.push({cls:"warning", txt:`${s.name}: consistent downward trend — average has dropped to ${a}.`});
+    } else if (t === "Improving") {
+      STUDENT_DATA.insights.push({cls:"success", txt:`${s.name}: positive trend — average improved from ${lo} to ${hi}.`});
+    }
+  });
+
+  const unexcused = attendance.log.filter(a => a.type === "Unexcused").length;
+  if (unexcused >= 2) {
+    STUDENT_DATA.risk_flags.push({subject:"Attendance", level:"High", reason:`${unexcused} unexcused absences this semester.`});
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+let charts = [];
+function destroyCharts() { charts.forEach(c => c.destroy()); charts = []; }
+
+function avg(arr)  { return arr.length ? Math.round(arr.reduce((a,b) => a+b, 0) / arr.length) : 0; }
+function subAvg(s) { return avg(s.assessments.map(a => a.score)); }
+
+function riskLevel(s) {
+  const a = subAvg(s), t = s.monthly;
+  const dec = t.length >= 2 && t[t.length-1] < t[0];
+  if (a < 65 || s.absences >= 5 || (a < 75 && dec)) return "High";
+  if (a < 75 || s.absences >= 3) return "Medium";
+  return "Low";
+}
+
+function trendLabel(s) {
+  const t = s.monthly;
+  if (t.length < 2) return "Stable";
+  const d = t[t.length-1] - t[0];
+  return d >= 3 ? "Improving" : d <= -3 ? "Declining" : "Stable";
+}
+
+function e(str) { return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function badgeHtml(lvl) {
+  const c = lvl === "High" ? "badge-high" : lvl === "Medium" ? "badge-medium" : "badge-low";
+  return `<span class="badge ${c}">${lvl}</span>`;
+}
+
+function trendHtml(t) {
+  if (t === "Improving") return `<span style="color:var(--green);font-weight:700">&#8593; Improving</span>`;
+  if (t === "Declining") return `<span style="color:var(--red);font-weight:700">&#8595; Declining</span>`;
+  return `<span style="color:var(--gray-500)">&#8594; Stable</span>`;
+}
+
+// ── ROUTER ────────────────────────────────────────────────────────────────────
+let loggedIn = false;
+const PROTECTED = ["/cabinet", "/analytics", "/attendance"];
+
+function go(p) { window.location.hash = p; }
+
+function route() {
+  destroyCharts();
+  const hash = window.location.hash.slice(1) || "/";
+  if (PROTECTED.includes(hash) && !loggedIn) { go("/login"); return; }
+
+  const sidebar = document.getElementById("sidebar");
+  const content = document.getElementById("main-content");
+  const showNav = loggedIn && PROTECTED.includes(hash);
+
+  sidebar.classList.toggle("hidden", !showNav);
+  content.classList.toggle("no-sidebar", !showNav);
+
+  const { student } = STUDENT_DATA;
+  document.getElementById("header-user").textContent = loggedIn ? `${student.name} · ${student.class}` : "";
+
+  document.querySelectorAll(".sidebar__link[data-route]").forEach(el => {
+    el.classList.toggle("active", hash === "/" + el.dataset.route);
+  });
+
+  const pages = {
+    "/":           renderWelcome,
+    "/login":      renderLogin,
+    "/cabinet":    renderCabinet,
+    "/analytics":  renderAnalytics,
+    "/attendance": renderAttendance,
+  };
+  (pages[hash] || (() => {
+    content.innerHTML = `<div class="page-heading"><h1>404 — Not Found</h1></div><p><a href="#/">Return home</a></p>`;
+  }))();
+  content.scrollTop = 0;
+}
+
+window.addEventListener("hashchange", route);
+
+// ── PAGE: WELCOME ─────────────────────────────────────────────────────────────
+function renderWelcome() {
+  document.getElementById("main-content").innerHTML = `
+    <div class="welcome-outer"><div class="welcome-box">
+      <span class="sys-tag">Official Student Monitoring Platform</span>
+      <h1>EduTrack</h1>
+      <p class="lead">A structured system for monitoring individual academic performance, attendance patterns, and risk indicators. All analytics are derived exclusively from the student's own record.</p>
+      <ul class="feature-list">
+        <li>Personal academic record with full grade history</li>
+        <li>Subject risk detection based on grade trends and attendance</li>
+        <li>Monthly attendance breakdown and absence log</li>
+        <li>Behaviour records and formal teacher communications</li>
+      </ul>
+      <a href="#/login" class="btn btn-primary">Access System</a>
+    </div></div>`;
+}
+
+// ── PAGE: LOGIN ───────────────────────────────────────────────────────────────
+function renderLogin() {
+  document.getElementById("main-content").innerHTML = `
+    <div class="login-outer">
+      <div class="page-heading">
+        <h1>Sign In</h1>
+        <p class="page-heading__meta">Enter your school-issued credentials to access your student record.</p>
+      </div>
+      <form id="lform" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="uname">Username</label>
+          <span class="form-hint">Your school-issued username</span>
+          <input class="form-input" type="text" id="uname" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pw">Password</label>
+          <span class="form-hint">Your EduTrack password</span>
+          <input class="form-input" type="password" id="pw" autocomplete="current-password" required>
+        </div>
+        <div id="lerr" class="alert alert-danger hidden" role="alert">
+          <strong>Error:</strong> Both fields are required.
+        </div>
+        <button type="submit" class="btn btn-primary">Sign In</button>
+      </form>
+    </div>`;
+
+  document.getElementById("lform").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const u = document.getElementById("uname").value.trim();
+    const p = document.getElementById("pw").value.trim();
+    if (!u || !p) { document.getElementById("lerr").classList.remove("hidden"); return; }
+    loggedIn = true;
+    go("/cabinet");
+  });
+}
+
+// ── PAGE: CABINET ─────────────────────────────────────────────────────────────
+function renderCabinet() {
+  const { student, subjects, attendance } = STUDENT_DATA;
+  const rate = Math.round(attendance.summary.present / attendance.summary.total * 100);
+
+  const subRows = subjects.map(s => `<tr>
+    <td><strong>${e(s.name)}</strong></td><td>${e(s.teacher)}</td>
+    <td>${s.assessments.length}</td><td><strong>${subAvg(s)}</strong></td>
+    <td>${s.absences}</td><td>${badgeHtml(riskLevel(s))}</td>
+  </tr>`).join("");
+
+  const aRows = subjects.flatMap(s => s.assessments.map(a => `<tr>
+    <td>${e(a.month)}</td><td>${e(s.name)}</td>
+    <td><span class="badge badge-info">${e(a.type)}</span></td>
+    <td>${e(a.title)}</td><td><strong>${a.score}</strong></td>
+  </tr>`)).join("");
+
+  document.getElementById("main-content").innerHTML = `
+    <div class="page-heading">
+      <h1>Personal Cabinet</h1>
+      <p class="page-heading__meta">${e(student.year)} &mdash; ${e(student.semester)} Semester</p>
+    </div>
+
+    <section aria-labelledby="h-profile" style="margin-bottom:28px">
+      <h2 id="h-profile">Student Profile</h2>
+      <div style="border-top:2px solid var(--gray-200)">
+        <div class="profile-row"><span class="profile-row__key">Full Name</span><span class="profile-row__val">${e(student.name)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">Student ID</span><span class="profile-row__val text-mono">${e(student.id)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">Class</span><span class="profile-row__val">${e(student.class)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">School</span><span class="profile-row__val">${e(student.school)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">Academic Year</span><span class="profile-row__val">${e(student.year)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">Form Tutor</span><span class="profile-row__val">${e(student.tutor)}</span></div>
+        <div class="profile-row"><span class="profile-row__key">Date of Birth</span><span class="profile-row__val">${e(student.dob)}</span></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-subjects">
+      <h2 id="h-subjects">Subject Overview</h2>
+      <p class="text-muted" style="margin-bottom:14px;font-size:.9375rem">All enrolled subjects with current averages and risk status.</p>
+      <table class="data-table">
+        <thead><tr><th>Subject</th><th>Teacher</th><th>Assessments</th><th>Average</th><th>Absences</th><th>Risk</th></tr></thead>
+        <tbody>${subRows}</tbody>
+      </table>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-att-sum">
+      <h2 id="h-att-sum">Attendance Summary</h2>
+      <div class="stats-grid" style="margin-top:16px">
+        <div class="stat-box">
+          <div class="stat-box__label">Total Days</div>
+          <div class="stat-box__value">${attendance.summary.total}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-box__label">Present</div>
+          <div class="stat-box__value" style="color:var(--green)">${attendance.summary.present}</div>
+          <div class="stat-box__sub">${rate}% attendance rate</div>
+        </div>
+        <div class="stat-box danger">
+          <div class="stat-box__label">Absent</div>
+          <div class="stat-box__value">${attendance.summary.absent}</div>
+          <div class="stat-box__sub">days missed</div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-assess">
+      <h2 id="h-assess">Full Assessment Record</h2>
+      <p class="text-muted" style="margin-bottom:14px;font-size:.9375rem">FA = Formative &nbsp;|&nbsp; SA = Summative &nbsp;|&nbsp; SAQ = Short Answer Quiz</p>
+      <table class="data-table">
+        <thead><tr><th>Month</th><th>Subject</th><th>Type</th><th>Title</th><th>Score</th></tr></thead>
+        <tbody>${aRows}</tbody>
+      </table>
+    </section>`;
+}
+
+// ── PAGE: ANALYTICS ───────────────────────────────────────────────────────────
+function renderAnalytics() {
+  const { subjects, months, attendance, insights, risk_flags } = STUDENT_DATA;
+  const overallAvg = Math.round(subjects.reduce((s, sub) => s + subAvg(sub), 0) / subjects.length);
+  const highN      = risk_flags.filter(f => f.level === "High").length;
+  const medN       = subjects.filter(s => riskLevel(s) === "Medium").length;
+  const rate       = Math.round(attendance.summary.present / attendance.summary.total * 100);
+
+  const insightHtml = insights.length
+    ? insights.map(i => `<div class="alert alert-${i.cls}">${e(i.txt)}</div>`).join("")
+    : `<p class="text-muted">No significant patterns detected.</p>`;
+
+  const riskRows = subjects.map(s => `<tr>
+    <td><strong>${e(s.name)}</strong></td><td>${subAvg(s)}</td>
+    <td>${trendHtml(trendLabel(s))}</td><td>${s.absences}</td><td>${badgeHtml(riskLevel(s))}</td>
+  </tr>`).join("");
+
+  document.getElementById("main-content").innerHTML = `
+    <div class="page-heading">
+      <h1>Academic Analytics</h1>
+      <p class="page-heading__meta">Performance trends and risk analysis &mdash; individual data only.</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-box__label">Overall Average</div>
+        <div class="stat-box__value">${overallAvg}</div>
+        <div class="stat-box__sub">across ${subjects.length} subjects</div>
+      </div>
+      <div class="stat-box ${highN > 0 ? "danger" : ""}">
+        <div class="stat-box__label">High Risk</div>
+        <div class="stat-box__value">${highN}</div>
+        <div class="stat-box__sub">subject${highN !== 1 ? "s" : ""}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Medium Risk</div>
+        <div class="stat-box__value" style="color:var(--orange)">${medN}</div>
+        <div class="stat-box__sub">subject${medN !== 1 ? "s" : ""}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Attendance Rate</div>
+        <div class="stat-box__value" style="color:${rate < 85 ? "var(--red)" : "var(--green)"}">${rate}%</div>
+        <div class="stat-box__sub">${attendance.summary.present}/${attendance.summary.total} days</div>
+      </div>
+    </div>
+
+    <section aria-labelledby="h-insights">
+      <h2 id="h-insights">System Insights</h2>
+      <p class="text-muted" style="margin-bottom:12px;font-size:.9375rem">Automated patterns detected from this student's own grade and attendance data.</p>
+      ${insightHtml}
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-trends">
+      <h2 id="h-trends">Grade Trends by Subject</h2>
+      <p class="text-muted" style="margin-bottom:14px;font-size:.9375rem">Monthly average scores across all enrolled subjects.</p>
+      <div class="chart-wrap"><canvas id="chart-trends"></canvas></div>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-risk-tbl">
+      <h2 id="h-risk-tbl">Subject Risk Summary</h2>
+      <table class="data-table">
+        <thead><tr><th>Subject</th><th>Average</th><th>Trend</th><th>Absences</th><th>Risk Level</th></tr></thead>
+        <tbody>${riskRows}</tbody>
+      </table>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-corr">
+      <h2 id="h-corr">Attendance vs. Performance Correlation</h2>
+      <p class="text-muted" style="margin-bottom:14px;font-size:.9375rem">Subjects with more absences tend to show lower averages &mdash; based on this student's data only.</p>
+      <div class="chart-wrap" style="height:260px"><canvas id="chart-corr"></canvas></div>
+    </section>`;
+
+  const c1 = new Chart(document.getElementById("chart-trends"), {
+    type: "line",
+    data: {
+      labels: months,
+      datasets: subjects.map(s => ({
+        label: s.name, data: s.monthly, borderColor: s.color,
+        backgroundColor: "transparent", borderWidth: 2,
+        pointRadius: 4, pointBackgroundColor: s.color, tension: 0,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {position:"bottom", labels:{font:{size:12}, padding:16}},
+        tooltip: {mode:"index", intersect:false},
+      },
+      scales: {
+        y: {min:50, max:100, grid:{color:"#e8e8e8"}, title:{display:true, text:"Score"}},
+        x: {grid:{display:false}},
+      },
+    },
+  });
+  charts.push(c1);
+
+  const c2 = new Chart(document.getElementById("chart-corr"), {
+    type: "bar",
+    data: {
+      labels: subjects.map(s => s.name),
+      datasets: [
+        {
+          label: "Average Score", data: subjects.map(s => subAvg(s)),
+          yAxisID: "y", borderWidth: 0,
+          backgroundColor: subjects.map(s => riskLevel(s)==="High" ? "#d4351c" : riskLevel(s)==="Medium" ? "#f47738" : "#1d70b8"),
+        },
+        {
+          label: "Absences", data: subjects.map(s => s.absences),
+          yAxisID: "y2", backgroundColor: "#e8e8e8", borderColor: "#b1b4b6", borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend:{position:"bottom", labels:{font:{size:12}, padding:16}}},
+      scales: {
+        y:  {min:0, max:100, position:"left",  title:{display:true, text:"Score"},   grid:{color:"#e8e8e8"}},
+        y2: {min:0, max:10,  position:"right", title:{display:true, text:"Absences"},grid:{display:false}},
+        x:  {grid:{display:false}},
+      },
+    },
+  });
+  charts.push(c2);
+}
+
+// ── PAGE: ATTENDANCE ──────────────────────────────────────────────────────────
+function renderAttendance() {
+  const { student, attendance, behaviour, teacher_notes, risk_flags } = STUDENT_DATA;
+  const unex = attendance.log.filter(a => a.type === "Unexcused").length;
+  const exc  = attendance.log.filter(a => a.type === "Excused").length;
+  const late = attendance.log.filter(a => a.type === "Late Arrival").length;
+  const rate = Math.round(attendance.summary.present / attendance.summary.total * 100);
+
+  const absRows = attendance.log.map(a => {
+    const c = a.type === "Unexcused" ? "badge-high" : a.type === "Excused" ? "badge-low" : "badge-medium";
+    return `<tr>
+      <td>${e(a.date)}</td><td>${e(a.subject)}</td>
+      <td><span class="badge ${c}">${e(a.type)}</span></td>
+      <td class="text-muted">${e(a.note)}</td>
+    </tr>`;
+  }).join("");
+
+  const behRows = behaviour.map(b => {
+    const c = b.type === "Concern" ? "badge-high" : b.type === "Note" ? "badge-medium" : "badge-low";
+    return `<tr>
+      <td>${e(b.date)}</td><td><span class="badge ${c}">${e(b.type)}</span></td>
+      <td>${e(b.subject)}</td><td>${e(b.teacher)}</td><td>${e(b.desc)}</td>
+    </tr>`;
+  }).join("");
+
+  const notesHtml = teacher_notes.map(n => {
+    const bc = n.subject === "English" ? "panel-green" : ["Mathematics","Chemistry"].includes(n.subject) ? "panel-red" : "panel-blue";
+    return `<div class="panel ${bc}">
+      <div class="flex-between" style="margin-bottom:8px">
+        <div><strong>${e(n.from)}</strong><span class="text-muted" style="font-size:.875rem"> &mdash; ${e(n.subject)}</span></div>
+        <span class="text-mono text-muted" style="font-size:.8125rem">${e(n.date)}</span>
+      </div>
+      <p class="mb-0">${e(n.note)}</p>
+    </div>`;
+  }).join("");
+
+  const attFlag = risk_flags.find(f => f.subject === "Attendance");
+  const riskAlert = attFlag
+    ? `<div class="alert alert-danger"><strong>Risk Pattern Detected:</strong> ${e(attFlag.reason)} Disciplinary review may be required.</div>`
+    : "";
+
+  document.getElementById("main-content").innerHTML = `
+    <div class="page-heading">
+      <h1>Attendance, Behaviour &amp; Notes</h1>
+      <p class="page-heading__meta">${e(student.year)} &mdash; ${e(student.semester)} Semester</p>
+    </div>
+
+    ${riskAlert}
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-box__label">Attendance Rate</div>
+        <div class="stat-box__value" style="color:${rate < 85 ? "var(--red)" : "var(--green)"}">${rate}%</div>
+      </div>
+      <div class="stat-box danger">
+        <div class="stat-box__label">Unexcused</div>
+        <div class="stat-box__value">${unex}</div><div class="stat-box__sub">absences</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Excused</div>
+        <div class="stat-box__value">${exc}</div><div class="stat-box__sub">absences</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box__label">Late Arrivals</div>
+        <div class="stat-box__value">${late}</div>
+      </div>
+    </div>
+
+    <section aria-labelledby="h-att-chart">
+      <h2 id="h-att-chart">Monthly Attendance Overview</h2>
+      <div class="chart-wrap" style="height:260px"><canvas id="chart-att"></canvas></div>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-log">
+      <h2 id="h-log">Absence Log</h2>
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Subject</th><th>Type</th><th>Note</th></tr></thead>
+        <tbody>${absRows}</tbody>
+      </table>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-beh">
+      <h2 id="h-beh">Behaviour Records</h2>
+      <p class="text-muted" style="margin-bottom:14px;font-size:.9375rem">Formal incidents, concerns, and commendations logged by teaching staff.</p>
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Type</th><th>Subject</th><th>Teacher</th><th>Description</th></tr></thead>
+        <tbody>${behRows}</tbody>
+      </table>
+    </section>
+
+    <hr class="section-sep">
+
+    <section aria-labelledby="h-notes">
+      <h2 id="h-notes">Teacher Notes</h2>
+      <p class="text-muted" style="margin-bottom:16px;font-size:.9375rem">Formal notes submitted by subject teachers.</p>
+      ${notesHtml}
+    </section>`;
+
+  const c = new Chart(document.getElementById("chart-att"), {
+    type: "bar",
+    data: {
+      labels: attendance.monthly.map(m => m.month),
+      datasets: [
+        {label:"Present",   data:attendance.monthly.map(m=>m.present),   backgroundColor:"#00703c",borderWidth:0},
+        {label:"Excused",   data:attendance.monthly.map(m=>m.excused),   backgroundColor:"#1d70b8",borderWidth:0},
+        {label:"Unexcused", data:attendance.monthly.map(m=>m.unexcused), backgroundColor:"#d4351c",borderWidth:0},
+        {label:"Late",      data:attendance.monthly.map(m=>m.late),      backgroundColor:"#f47738",borderWidth:0},
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend:{position:"bottom", labels:{font:{size:12}, padding:16}}},
+      scales: {
+        y: {beginAtZero:true, title:{display:true, text:"Days"}, grid:{color:"#e8e8e8"}},
+        x: {grid:{display:false}},
+      },
+    },
+  });
+  charts.push(c);
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+document.getElementById("export-btn").addEventListener("click", () => {
+  const { student, subjects, attendance } = STUDENT_DATA;
+  const rows = [
+    ["Student","ID","Class","School","Year"],
+    [student.name, student.id, student.class, student.school, student.year],
+    [],
+    ["Subject","Average","Risk Level","Trend","Absences"],
+    ...subjects.map(s => [s.name, subAvg(s), riskLevel(s), trendLabel(s), s.absences]),
+    [],
+    ["Date","Subject","Absence Type","Note"],
+    ...attendance.log.map(a => [a.date, a.subject, a.type, a.note]),
+  ];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = `edutrack_${student.id}.csv`; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── LOGOUT ────────────────────────────────────────────────────────────────────
+document.getElementById("logout-link").addEventListener("click", () => { loggedIn = false; });
+
+// =============================================================================
+// APP INIT
+//
+// Future backend integration: replace the two lines below with a fetch call:
+//
+//   fetch('/api/student')
+//     .then(r => r.json())
+//     .then(data => {
+//       Object.assign(STUDENT_DATA, data);  // overwrite with server data
+//       initDerivedData();                  // skip if backend pre-computes risk_flags/insights
+//       route();
+//     });
+//
+// The Flask route in app.py will read data/demo_data.json and return it as JSON.
+// =============================================================================
+initDerivedData();
+route();
+</script>
+</body>
+</html>
