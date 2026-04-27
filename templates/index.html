@@ -216,32 +216,25 @@ p{margin-bottom:12px}
 
 </div>
 <script>
-// =============================================================================
-// STUDENT DATA — single source of truth for all charts, tables, and UI.
-// Shape mirrors data/demo_data.json so the backend can return the same structure.
-//
-// Future backend integration: replace STUDENT_DATA with the response from
-// fetch('/api/student') in Flask app.py, which reads data/demo_data.json.
-// See initApp() at the bottom for the exact integration point.
-// =============================================================================
+
 const STUDENT_DATA = {
 
-  // Future backend: maps to demo_data.json → "student"
+  
   student: {
     name:     "Aidyn Abenov",
-    class:    "11B",
+    class:    "11D",
     id:       "STU-2024-0042",
     school:   "Quantum STEM School",
     year:     "2024/2025",
     semester: "Spring",
-    tutor:    "Ms. Petrova",
+    tutor:    "Andrey Leven",
     dob:      "12 March 2007",
   },
 
-  // Future backend: maps to demo_data.json → "months"
+  
   months: ["January","February","March","April"],
 
-  // Future backend: maps to demo_data.json → "subjects"
+  
   subjects: [
     {
       id:"math", name:"Mathematics", teacher:"Bagdat Doshanov",
@@ -292,7 +285,7 @@ const STUDENT_DATA = {
       ],
     },
     {
-      id:"history", name:"History", teacher:"Mr. Vasile",
+      id:"history", name:"History", teacher:"Asel Azatova",
       color:"#f47738", absences:2,
       monthly:[74,71,73,70],
       assessments:[
@@ -326,14 +319,14 @@ const STUDENT_DATA = {
     ],
   },
 
-  // Future backend: maps to demo_data.json → "behaviour"
+  
   behaviour: [
     {date:"Jan 29",type:"Note",        subject:"Mathematics",teacher:"Bagdat Doshanov", desc:"Disrupting class during test preparation."},
     {date:"Feb 12",type:"Concern",     subject:"Chemistry",  teacher:"Andrey Leven",    desc:"Missed lab safety briefing due to absence. Required to attend makeup session."},
     {date:"Mar 17",type:"Commendation",subject:"English",    teacher:"Aigul Sarken",    desc:"Outstanding essay submission — selected for school publication."},
   ],
 
-  // Future backend: maps to demo_data.json → "teacher_notes"
+  
   teacher_notes: [
     {from:"Bagdat Doshanov", subject:"Mathematics",date:"Apr 20",note:"Aidyn shows difficulty with calculus fundamentals. Attendance gaps are contributing to missed content. Recommend additional tutoring sessions."},
     {from:"Aigul Sarken",    subject:"English",    date:"Apr 18",note:"Excellent progress this semester. Aidyn demonstrates strong analytical skills. Encourage participation in the school debate team."},
@@ -389,7 +382,6 @@ function initDerivedData() {
   }
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
 let charts = [];
 function destroyCharts() { charts.forEach(c => c.destroy()); charts = []; }
 
@@ -424,7 +416,6 @@ function trendHtml(t) {
   return `<span style="color:var(--gray-500)">&#8594; Stable</span>`;
 }
 
-// ── ROUTER ────────────────────────────────────────────────────────────────────
 let loggedIn = false;
 const PROTECTED = ["/cabinet", "/analytics", "/attendance"];
 
@@ -464,7 +455,7 @@ function route() {
 
 window.addEventListener("hashchange", route);
 
-// ── PAGE: WELCOME ─────────────────────────────────────────────────────────────
+
 function renderWelcome() {
   document.getElementById("main-content").innerHTML = `
     <div class="welcome-outer"><div class="welcome-box">
@@ -481,7 +472,6 @@ function renderWelcome() {
     </div></div>`;
 }
 
-// ── PAGE: LOGIN ───────────────────────────────────────────────────────────────
 function renderLogin() {
   document.getElementById("main-content").innerHTML = `
     <div class="login-outer">
@@ -517,7 +507,6 @@ function renderLogin() {
   });
 }
 
-// ── PAGE: CABINET ─────────────────────────────────────────────────────────────
 function renderCabinet() {
   const { student, subjects, attendance } = STUDENT_DATA;
   const rate = Math.round(attendance.summary.present / attendance.summary.total * 100);
@@ -596,7 +585,6 @@ function renderCabinet() {
     </section>`;
 }
 
-// ── PAGE: ANALYTICS ───────────────────────────────────────────────────────────
 function renderAnalytics() {
   const { subjects, months, attendance, insights, risk_flags } = STUDENT_DATA;
   const overallAvg = Math.round(subjects.reduce((s, sub) => s + subAvg(sub), 0) / subjects.length);
@@ -727,7 +715,6 @@ function renderAnalytics() {
   charts.push(c2);
 }
 
-// ── PAGE: ATTENDANCE ──────────────────────────────────────────────────────────
 function renderAttendance() {
   const { student, attendance, behaviour, teacher_notes, risk_flags } = STUDENT_DATA;
   const unex = attendance.log.filter(a => a.type === "Unexcused").length;
@@ -852,7 +839,6 @@ function renderAttendance() {
   charts.push(c);
 }
 
-// ── EXPORT ────────────────────────────────────────────────────────────────────
 document.getElementById("export-btn").addEventListener("click", () => {
   const { student, subjects, attendance } = STUDENT_DATA;
   const rows = [
@@ -873,24 +859,8 @@ document.getElementById("export-btn").addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
-// ── LOGOUT ────────────────────────────────────────────────────────────────────
 document.getElementById("logout-link").addEventListener("click", () => { loggedIn = false; });
 
-// =============================================================================
-// APP INIT
-//
-// Future backend integration: replace the two lines below with a fetch call:
-//
-//   fetch('/api/student')
-//     .then(r => r.json())
-//     .then(data => {
-//       Object.assign(STUDENT_DATA, data);  // overwrite with server data
-//       initDerivedData();                  // skip if backend pre-computes risk_flags/insights
-//       route();
-//     });
-//
-// The Flask route in app.py will read data/demo_data.json and return it as JSON.
-// =============================================================================
 initDerivedData();
 route();
 </script>
