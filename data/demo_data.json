@@ -65,6 +65,8 @@
       "teacher": "Bagdat Doshanov",
       "color": "#ef4444",
       "absences": 3,
+      "final_grade": "D+",
+      "lessons_per_week": 5,
       "monthly_trend": [
         {
           "month": "January",
@@ -122,6 +124,8 @@
       "teacher": "Aigul Sarken",
       "color": "#22c55e",
       "absences": 1,
+      "final_grade": "A-",
+      "lessons_per_week": 4,
       "monthly_trend": [
         {
           "month": "January",
@@ -173,6 +177,8 @@
       "teacher": "Nazymgul Karimova",
       "color": "#f97316",
       "absences": 2,
+      "final_grade": "C-",
+      "lessons_per_week": 4,
       "monthly_trend": [
         {
           "month": "January",
@@ -224,6 +230,8 @@
       "teacher": "Mr. Sedlak",
       "color": "#3b82f6",
       "absences": 3,
+      "final_grade": "B-",
+      "lessons_per_week": 2,
       "monthly_trend": [
         {
           "month": "January",
@@ -268,6 +276,34 @@
           "score": 84
         }
       ]
+    },
+    {
+      "id": "pe",
+      "name": "Physical Education",
+      "teacher": "Coach Bekzat",
+      "color": "#0ea5e9",
+      "absences": 0,
+      "final_grade": "Pass",
+      "lessons_per_week": 2,
+      "monthly_trend": [
+        {
+          "month": "January",
+          "average": 0
+        },
+        {
+          "month": "February",
+          "average": 0
+        },
+        {
+          "month": "March",
+          "average": 0
+        },
+        {
+          "month": "April",
+          "average": 0
+        }
+      ],
+      "assessments": []
     }
   ]
 }

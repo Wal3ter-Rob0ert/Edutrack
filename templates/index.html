@@ -333,20 +333,11 @@ const STUDENT_DATA = {
     {from:"Andrey Leven",    subject:"Chemistry",  date:"Apr 15",note:"Performance has declined since February. Absences are directly impacting lab practicals. Parents should be informed of current trajectory."},
   ],
 
-  // Derived fields — populated by initDerivedData() below.
-  // Future backend: app.py may pre-compute these and include them in the API
-  // response under the same keys. If so, remove the initDerivedData() call in
-  // initApp() and use the values from the fetch response directly.
-  risk_flags: [], // [{ subject, level, reason }]
-  insights:   [], // [{ cls, txt }]  cls = "danger" | "warning" | "success"
+  
+  risk_flags: [], 
+  insights:   [], 
 };
 
-// =============================================================================
-// DERIVED DATA — computes risk_flags and insights from STUDENT_DATA at startup.
-//
-// Future backend: if /api/student already returns risk_flags and insights,
-// remove this function and delete its call from initApp() below.
-// =============================================================================
 function initDerivedData() {
   const { subjects, attendance } = STUDENT_DATA;
 
@@ -861,8 +852,67 @@ document.getElementById("export-btn").addEventListener("click", () => {
 
 document.getElementById("logout-link").addEventListener("click", () => { loggedIn = false; });
 
-initDerivedData();
-route();
+function applyApiData(api) {
+  if (api.student) {
+    Object.assign(STUDENT_DATA.student, {
+      name:     api.student.name        ?? STUDENT_DATA.student.name,
+      class:    api.student.class       ?? STUDENT_DATA.student.class,
+      school:   api.student.school      ?? STUDENT_DATA.student.school,
+      year:     api.student.school_year ?? STUDENT_DATA.student.year,
+      semester: api.student.semester    ?? STUDENT_DATA.student.semester,
+    });
+  }
+
+  if (Array.isArray(api.months) && api.months.length) {
+    STUDENT_DATA.months = api.months;
+  }
+
+  if (Array.isArray(api.subjects) && api.subjects.length) {
+    const demoColors = STUDENT_DATA.subjects.map(s => s.color);
+    STUDENT_DATA.subjects = api.subjects.map((s, i) => ({
+      id:          String(s.id ?? i),
+      name:        s.name,
+      teacher:     s.teacher,
+      color:       s.color || demoColors[i] || "#1d70b8",
+      absences:    s.absences ?? 0,
+      monthly:     (s.monthly_trend || []).map(t => t.average ?? 0),
+      assessments: s.assessments || [],
+    }));
+  }
+
+  if (api.attendance) {
+    const summary = api.attendance.summary || {};
+    STUDENT_DATA.attendance.summary = {
+      total:   summary.total_days   ?? STUDENT_DATA.attendance.summary.total,
+      present: summary.present_days ?? STUDENT_DATA.attendance.summary.present,
+      absent:  summary.absent_days  ?? STUDENT_DATA.attendance.summary.absent,
+    };
+    if (Array.isArray(api.attendance.monthly)) {
+      STUDENT_DATA.attendance.monthly = api.attendance.monthly.map(m => ({
+        month: m.month, present: m.present, absent: m.absent,
+        excused: m.excused, unexcused: m.unexcused, late: m.late_arrivals,
+      }));
+    }
+  }
+}
+
+async function initApp() {
+  try {
+    const res = await fetch("/api/analytics");
+    if (res.ok) {
+      applyApiData(await res.json());
+      console.info("[edutrack] data loaded from /api/analytics");
+    } else {
+      console.warn("[edutrack] /api/analytics returned", res.status, "— using demo data");
+    }
+  } catch (err) {
+    console.warn("[edutrack] /api/analytics unreachable — using demo data", err);
+  }
+  initDerivedData();
+  route();
+}
+
+initApp();
 </script>
 </body>
 </html>
