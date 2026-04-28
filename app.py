@@ -1,8 +1,14 @@
 from flask import Flask, render_template, jsonify, send_file
 import json
 import os
+import time
 
 from db import DB_PATH, get_connection, init_db, seed_db_from_json
+from edupage_loader import (
+    is_edupage_configured,
+    load_data_from_edupage,
+    merge_with_baseline,
+)
 
 app = Flask(__name__)
 
@@ -107,12 +113,50 @@ def load_data_from_db() -> dict | None:
         conn.close()
 
 
-def get_data() -> dict:
-    """Prefer SQLite; fall back to demo_data.json if the DB is empty/missing."""
-    data = load_data_from_db()
-    if data is None:
-        return load_demo_data()
+def _get_baseline() -> dict:
+    """SQLite first, JSON fallback. Always returns something usable."""
+    return load_data_from_db() or load_demo_data()
+
+
+# Simple in-process cache for EduPage so we don't log in on every request.
+_edupage_cache: dict = {"data": None, "fetched_at": 0.0, "tried": False}
+EDUPAGE_CACHE_SECONDS = 300
+
+
+def _get_edupage_cached():
+    """Fetch EduPage data with a 5-minute cache. Returns None if disabled/failed."""
+    if not is_edupage_configured():
+        return None
+    now = time.time()
+    if _edupage_cache["data"] is not None and (now - _edupage_cache["fetched_at"]) < EDUPAGE_CACHE_SECONDS:
+        return _edupage_cache["data"]
+    if _edupage_cache["tried"] and (now - _edupage_cache["fetched_at"]) < 60:
+        # Last attempt failed less than a minute ago — don't hammer EduPage.
+        return None
+
+    print("[edupage] Fetching fresh data from EduPage...")
+    data = load_data_from_edupage()
+    _edupage_cache["data"] = data
+    _edupage_cache["fetched_at"] = now
+    _edupage_cache["tried"] = True
     return data
+
+
+def get_data() -> tuple[dict, str]:
+    """
+    Data source priority:
+      1. EduPage (if env vars set and login succeeds) — merged with baseline
+      2. SQLite  (if data/edutrack.db has rows)
+      3. demo_data.json (always works)
+    Returns (data, source_label).
+    """
+    baseline = _get_baseline()
+    edupage_data = _get_edupage_cached()
+    if edupage_data is not None:
+        return merge_with_baseline(edupage_data, baseline), "edupage"
+    if load_data_from_db() is not None:
+        return baseline, "sqlite"
+    return baseline, "json"
 
 
 # Letter grade → grade point. Quantum STEM School official scale.
@@ -278,22 +322,38 @@ def dashboard():
 
 @app.route("/api/data")
 def api_data():
-    raw = get_data()
+    raw, source = get_data()
     enriched = build_analytics(raw)
+    enriched["source"] = source
     return jsonify(enriched)
 
 
 @app.route("/api/analytics")
 def api_analytics():
-    """Return processed analytics from the local JSON dataset."""
-    raw = get_data()
+    """Return processed analytics. EduPage → SQLite → JSON (auto fallback)."""
+    raw, source = get_data()
     enriched = build_analytics(raw)
+    enriched["source"] = source
     return jsonify(enriched)
+
+
+@app.route("/api/source")
+def api_source():
+    """Diagnostic — which data source is currently active and is EduPage configured?"""
+    edupage_ready = is_edupage_configured()
+    cache_age = (time.time() - _edupage_cache["fetched_at"]) if _edupage_cache["fetched_at"] else None
+    _, source = get_data()
+    return jsonify({
+        "source":              source,
+        "edupage_configured":  edupage_ready,
+        "edupage_last_ok":     _edupage_cache["data"] is not None,
+        "edupage_cache_age_s": round(cache_age, 1) if cache_age else None,
+    })
 
 
 @app.route("/export/csv")
 def export_csv():
-    raw = get_data()
+    raw, _ = get_data()
     enriched = build_analytics(raw)
     export_path = os.path.join(os.path.dirname(__file__), "student_analytics_export.csv")
 
@@ -320,8 +380,9 @@ def export_csv():
 @app.route("/api/demo")
 def api_demo():
     """Return processed analytics from the local demo dataset."""
-    raw = get_data()
+    raw, source = get_data()
     enriched = build_analytics(raw)
+    enriched["source"] = source
     return jsonify(enriched)
 
 

@@ -1,0 +1,7 @@
+.env
+.DS_Store
+__pycache__/
+*.pyc
+venv/
+data/edutrack.db
+student_analytics_export.csv
