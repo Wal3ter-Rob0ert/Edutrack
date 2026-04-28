@@ -62,7 +62,7 @@
     {
       "id": "math",
       "name": "Mathematics",
-      "teacher": "Mr. Horak",
+      "teacher": "Bagdat Doshanov",
       "color": "#ef4444",
       "absences": 3,
       "monthly_trend": [
@@ -119,7 +119,7 @@
     {
       "id": "english",
       "name": "English Language",
-      "teacher": "Ms. White",
+      "teacher": "Aigul Sarken",
       "color": "#22c55e",
       "absences": 1,
       "monthly_trend": [
@@ -170,7 +170,7 @@
     {
       "id": "physics",
       "name": "Physics",
-      "teacher": "Ms. Kovacs",
+      "teacher": "Nazymgul Karimova",
       "color": "#f97316",
       "absences": 2,
       "monthly_trend": [
