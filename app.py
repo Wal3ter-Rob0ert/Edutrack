@@ -1,9 +1,23 @@
-from flask import Flask, render_template, jsonify, send_file
+"""
+EduTrack — Flask backend.
+
+Single source of truth for ALL data and ALL calculations.
+Frontend (templates/index.html) is pure presentation: it fetches one
+endpoint (/api/analytics) and renders. Frontend computes nothing.
+
+Data sources, in priority order:
+    1. EduPage live data       (when the user is logged in)
+    2. demo_data.json baseline (fallback when EduPage is unreachable)
+"""
+
+import csv
 import json
 import os
 import time
 
-from db import DB_PATH, get_connection, init_db, seed_db_from_json
+from flask import Flask, jsonify, render_template, send_file, request, session, redirect, url_for
+from functools import wraps
+
 from edupage_loader import (
     is_edupage_configured,
     load_data_from_edupage,
@@ -11,159 +25,39 @@ from edupage_loader import (
 )
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
 DEMO_DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "demo_data.json")
+# CSV export goes to /tmp so deployments with read-only app dirs still work.
+EXPORT_PATH = os.path.join("/tmp" if os.path.isdir("/tmp") else os.path.dirname(__file__),
+                           "student_analytics_export.csv")
 
 
-def load_demo_data() -> dict:
-    with open(DEMO_DATA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+# ─── Authentication ────────────────────────────────────────────────────────────
+
+def login_required(f):
+    """Decorator: redirect to login if not authenticated."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
-def load_data_from_db() -> dict | None:
-    """
-    Read everything for the first student in the database and return a dict
-    shaped exactly like demo_data.json. Returns None if the DB is missing
-    or empty so the caller can fall back to JSON.
-    """
-    if not os.path.exists(DB_PATH):
-        return None
-
-    conn = get_connection()
-    try:
-        student_row = conn.execute("SELECT * FROM students LIMIT 1").fetchone()
-        if not student_row:
-            return None
-
-        student_id = student_row["id"]
-
-        student = {
-            "name": student_row["name"],
-            "class": student_row["class_name"],
-            "school": student_row["school"],
-            "school_year": student_row["school_year"],
-            "semester": student_row["semester"],
-        }
-
-        attendance_rows = conn.execute(
-            """
-            SELECT month, present, absent, excused, unexcused, late_arrivals
-            FROM attendance_monthly
-            WHERE student_id = ?
-            ORDER BY id
-            """,
-            (student_id,),
-        ).fetchall()
-
-        attendance_monthly = [dict(row) for row in attendance_rows]
-        months = [row["month"] for row in attendance_monthly]
-
-        total_present = sum(row["present"] for row in attendance_monthly)
-        total_absent = sum(row["absent"] for row in attendance_monthly)
-        attendance = {
-            "summary": {
-                "total_days": total_present + total_absent,
-                "present_days": total_present,
-                "absent_days": total_absent,
-            },
-            "breakdown": {
-                "excused": sum(row["excused"] for row in attendance_monthly),
-                "unexcused": sum(row["unexcused"] for row in attendance_monthly),
-                "late_arrivals": sum(row["late_arrivals"] for row in attendance_monthly),
-            },
-            "monthly": attendance_monthly,
-        }
-
-        subject_rows = conn.execute(
-            "SELECT * FROM subjects WHERE student_id = ? ORDER BY id",
-            (student_id,),
-        ).fetchall()
-
-        subjects = []
-        for s in subject_rows:
-            assessment_rows = conn.execute(
-                "SELECT month, type, title, score FROM assessments WHERE subject_id = ? ORDER BY id",
-                (s["id"],),
-            ).fetchall()
-            trend_rows = conn.execute(
-                "SELECT month, average FROM monthly_trends WHERE subject_id = ? ORDER BY id",
-                (s["id"],),
-            ).fetchall()
-
-            subjects.append({
-                "id": str(s["id"]),
-                "name": s["name"],
-                "teacher": s["teacher"],
-                "color": s["color"],
-                "absences": s["absences"],
-                "behaviour": s["behaviour"],
-                "final_grade": s["final_grade"],
-                "lessons_per_week": s["lessons_per_week"],
-                "assessments": [dict(row) for row in assessment_rows],
-                "monthly_trend": [dict(row) for row in trend_rows],
-            })
-
-        return {
-            "student": student,
-            "months": months,
-            "attendance": attendance,
-            "subjects": subjects,
-        }
-    finally:
-        conn.close()
+def get_session_credentials() -> tuple[str, str, str]:
+    """Get credentials from session, fallback to .env for single-user mode."""
+    if "user" in session:
+        return (session["user"]["username"], session["user"]["password"], session["user"]["subdomain"])
+    # Fallback to .env (for single-user/demo mode)
+    return (
+        os.environ.get("EDUPAGE_USERNAME", ""),
+        os.environ.get("EDUPAGE_PASSWORD", ""),
+        os.environ.get("EDUPAGE_SUBDOMAIN", ""),
+    )
 
 
-def _get_baseline() -> dict:
-    """SQLite first, JSON fallback. Always returns something usable."""
-    return load_data_from_db() or load_demo_data()
-
-
-# Simple in-process cache for EduPage so we don't log in on every request.
-_edupage_cache: dict = {"data": None, "fetched_at": 0.0, "tried": False}
-EDUPAGE_CACHE_SECONDS = 300
-
-
-def _get_edupage_cached():
-    """Fetch EduPage data with a 5-minute cache. Returns None if disabled/failed."""
-    if not is_edupage_configured():
-        return None
-    now = time.time()
-    if _edupage_cache["data"] is not None and (now - _edupage_cache["fetched_at"]) < EDUPAGE_CACHE_SECONDS:
-        return _edupage_cache["data"]
-    if _edupage_cache["tried"] and (now - _edupage_cache["fetched_at"]) < 60:
-        # Last attempt failed less than a minute ago — don't hammer EduPage.
-        return None
-
-    print("[edupage] Fetching fresh data from EduPage...")
-    data = load_data_from_edupage()
-    _edupage_cache["data"] = data
-    _edupage_cache["fetched_at"] = now
-    _edupage_cache["tried"] = True
-    return data
-
-
-def get_data() -> tuple[dict, str]:
-    """
-    Data source priority:
-      1. EduPage (if env vars set and login succeeds) — merged with baseline
-      2. SQLite  (if data/edutrack.db has rows)
-      3. demo_data.json (always works)
-    Returns (data, source_label).
-    """
-    baseline = _get_baseline()
-    edupage_data = _get_edupage_cached()
-    if edupage_data is not None:
-        return merge_with_baseline(edupage_data, baseline), "edupage"
-    if load_data_from_db() is not None:
-        return baseline, "sqlite"
-    return baseline, "json"
-
-
-# Letter grade → grade point. Quantum STEM School official scale.
-#   A+ 95-100 = 4.0   A  90-94 = 4.0   A- 85-89 = 3.7
-#   B+ 80-84  = 3.3   B  70-79 = 3.0   B- 65-69 = 2.7
-#   C+ 60-64  = 2.3   C  50-59 = 2.0   C- 40-49 = 1.7
-#   D+ 35-39  = 1.3   D  30-34 = 1.0   F  <30   = 0.0
+# ─── Grading scale (Quantum STEM School) ────────────────────────────────────
 LETTER_TO_POINT = {
     "A+": 4.0, "A":  4.0, "A-": 3.7,
     "B+": 3.3, "B":  3.0, "B-": 2.7,
@@ -171,222 +65,349 @@ LETTER_TO_POINT = {
     "D+": 1.3, "D":  1.0,
     "F":  0.0,
 }
-
-# Subjects with these final grades are excluded from GPA (e.g. PE = Pass).
 NON_GPA_GRADES = {"Pass", "P", "Fail"}
 
 
+# ─── Data loaders ───────────────────────────────────────────────────────────
+
+def load_demo_data() -> dict:
+    """Read the canonical JSON baseline. Always works."""
+    with open(DEMO_DATA_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+# ─── EduPage cache (per-user, to avoid re-login on every request) ────────────
+_edupage_cache: dict = {}
+EDUPAGE_CACHE_SECONDS = 300
+
+
+def _get_cache_key() -> str:
+    """Create cache key from current session user."""
+    if "user" in session:
+        return f"user:{session['user']['username']}"
+    return "default"
+
+
+def _get_edupage_cached():
+    """Fetch EduPage with a 5-minute cache. Returns None if disabled/failed."""
+    username, password, subdomain = get_session_credentials()
+    if not (username and password and subdomain):
+        return None
+
+    cache_key = _get_cache_key()
+    now = time.time()
+
+    if cache_key not in _edupage_cache:
+        _edupage_cache[cache_key] = {"data": None, "fetched_at": 0.0, "tried": False}
+
+    cache = _edupage_cache[cache_key]
+    age = now - cache["fetched_at"]
+
+    if cache["data"] is not None and age < EDUPAGE_CACHE_SECONDS:
+        return cache["data"]
+    if cache["tried"] and age < 60:
+        return None
+
+    print(f"[edupage] Fetching fresh data for {username}...")
+    data = load_data_from_edupage(username, password, subdomain)
+    cache["data"] = data
+    cache["fetched_at"] = now
+    cache["tried"] = True
+    return data
+
+
+def get_data() -> tuple[dict, str]:
+    """Return (raw_data_dict, source_label). Source is one of: edupage, json."""
+    baseline = load_demo_data()
+    edupage = _get_edupage_cached()
+    if edupage is not None:
+        return merge_with_baseline(edupage, baseline), "edupage"
+    return baseline, "json"
+
+
+# ─── Per-subject calculations ───────────────────────────────────────────────
+
+# EduPage / Quantum STEM weighted formula by assessment category.
+# Group grades by category, average each, then weight: FA=25, SA=25, Midterm=50.
+_TYPE_TO_CATEGORY = {
+    "FA":  "FA",          # Формативное оценивание
+    "SAQ": "FA",          # legacy demo type → treat as formative
+    "SA":  "SA_SECTION",  # Суммативное за раздел (СОР / БЖБ)
+    "Midterm":     "SA_SEMESTER",  # Суммативное за семестр (СОЧ / ТЖБ)
+    "SA_SEMESTER": "SA_SEMESTER",
+}
+_CATEGORY_WEIGHTS = {"FA": 25, "SA_SECTION": 25, "SA_SEMESTER": 50}
+
+
+def calculate_category_breakdown(subject: dict) -> list[dict]:
+    """EduPage-style per-category breakdown: avg + weight + the scores that fed it.
+    Mirrors the mobile app's 'Среднее по категориям' panel."""
+    by_cat: dict[str, list[float]] = {}
+    for a in subject.get("assessments", []):
+        cat = _TYPE_TO_CATEGORY.get(a.get("type", "FA"), "FA")
+        by_cat.setdefault(cat, []).append(float(a.get("score", 0)))
+
+    labels = {"FA": "Formative (ФО)", "SA_SECTION": "Summative — Section (СОР)",
+              "SA_SEMESTER": "Summative — Semester (СОЧ / Midterm)"}
+    out = []
+    for cat in ("FA", "SA_SECTION", "SA_SEMESTER"):
+        scores = by_cat.get(cat, [])
+        if not scores:
+            continue
+        out.append({
+            "category": cat,
+            "label":    labels[cat],
+            "weight":   _CATEGORY_WEIGHTS[cat],
+            "average":  round(sum(scores) / len(scores), 1),
+            "count":    len(scores),
+            "scores":   [round(s, 1) for s in scores],
+        })
+    return out
+
+
 def calculate_subject_average(subject: dict) -> float:
-    """Return the simple average score for one subject."""
-    assessments = subject.get("assessments", [])
-    if not assessments:
+    """Weighted average matching EduPage's display:
+       Σ(weight × category_avg) / Σ(weight)."""
+    items = subject.get("assessments", [])
+    if not items:
         return 0.0
 
-    total_score = sum(item.get("score", 0) for item in assessments)
-    average = total_score / len(assessments)
-    return round(average, 2)
+    by_cat: dict[str, list[float]] = {}
+    for a in items:
+        cat = _TYPE_TO_CATEGORY.get(a.get("type", "FA"), "FA")
+        by_cat.setdefault(cat, []).append(float(a.get("score", 0)))
 
-
-def calculate_gpa(subjects: list[dict]) -> float:
-    """
-    School GPA — unweighted, on a 4.0 scale.
-
-        GPA = sum(grade_point * lessons_per_week) / sum(lessons_per_week)
-
-    Subjects with a non-letter grade ("Pass", "Fail") are excluded entirely,
-    so PE / Pass-Fail courses don't dilute the GPA.
-    """
-    weighted_points = 0.0
-    total_lessons = 0.0
-
-    for subject in subjects:
-        final_grade = subject.get("final_grade")
-        if not final_grade or final_grade in NON_GPA_GRADES:
+    weighted_sum, weight_sum = 0.0, 0.0
+    for cat, scores in by_cat.items():
+        w = _CATEGORY_WEIGHTS.get(cat, 0)
+        if w == 0 or not scores:
             continue
+        weighted_sum += w * (sum(scores) / len(scores))
+        weight_sum += w
 
-        point = LETTER_TO_POINT.get(final_grade)
-        if point is None:
-            continue
-
-        lessons = subject.get("lessons_per_week", 0) or 0
-        if lessons <= 0:
-            continue
-
-        weighted_points += point * lessons
-        total_lessons += lessons
-
-    if total_lessons == 0:
-        return 0.0
-
-    return round(weighted_points / total_lessons, 2)
+    return round(weighted_sum / weight_sum, 1) if weight_sum else 0.0
 
 
-def assign_risk_level(subject_average: float, absences: int) -> str:
-    """Assign a simple risk level based on average score and absences."""
-    if subject_average < 60 or absences >= 5:
+def assign_risk_level(avg: float, absences: int, trend: str) -> str:
+    """High if very low avg or many absences, or both declining and below 75."""
+    if avg < 65 or absences >= 5 or (avg < 75 and trend == "Declining"):
         return "High"
-    if subject_average < 75 or absences >= 3:
+    if avg < 75 or absences >= 3:
         return "Medium"
     return "Low"
 
 
-def get_grade_trend_label(monthly_trend: list[dict]) -> str:
-    """Return a simple trend label from the first and last monthly averages."""
+def get_trend_label(monthly_trend: list[dict]) -> str:
     if len(monthly_trend) < 2:
         return "Stable"
-
-    first_average = monthly_trend[0].get("average", 0)
-    last_average = monthly_trend[-1].get("average", 0)
-
-    if last_average > first_average:
-        return "Improving"
-    if last_average < first_average:
-        return "Declining"
+    delta = monthly_trend[-1].get("average", 0) - monthly_trend[0].get("average", 0)
+    if delta >= 3:  return "Improving"
+    if delta <= -3: return "Declining"
     return "Stable"
 
 
+def calculate_gpa(subjects: list[dict]) -> float:
+    """GPA = Σ(grade_point × lessons_per_week) / Σ(lessons_per_week). 4.0 scale.
+    Subjects with non-letter grades (Pass/Fail) are excluded."""
+    total_points, total_lessons = 0.0, 0.0
+    for s in subjects:
+        fg = s.get("final_grade")
+        if not fg or fg in NON_GPA_GRADES:
+            continue
+        point = LETTER_TO_POINT.get(fg)
+        lessons = s.get("lessons_per_week") or 0
+        if point is None or lessons <= 0:
+            continue
+        total_points += point * lessons
+        total_lessons += lessons
+    return round(total_points / total_lessons, 2) if total_lessons else 0.0
+
+
+# ─── Insights & risk flags (was duplicated in JS — now backend-only) ────────
+
+def build_risk_flags_and_insights(subjects: list[dict], attendance: dict) -> tuple[list, list]:
+    """Generate human-readable risk flags and insights for the dashboard.
+    Each subject already has subject_average, risk_level, trend filled in."""
+    risk_flags, insights = [], []
+
+    for s in subjects:
+        name, avg, absences = s["name"], s["subject_average"], s.get("absences", 0)
+        risk, trend = s["risk_level"], s["trend"]
+        monthly = [t.get("average", 0) for t in s.get("monthly_trend", [])]
+        lo = monthly[0] if monthly else 0
+        hi = monthly[-1] if monthly else 0
+
+        if risk == "High":
+            risk_flags.append({
+                "subject": name, "level": "High",
+                "reason": f"Average {avg}, {absences} absence{'s' if absences != 1 else ''} this semester.",
+            })
+            insights.append({
+                "cls": "danger",
+                "txt": f"{name} is flagged HIGH RISK — average {avg}, {absences} absence{'s' if absences != 1 else ''} this semester.",
+            })
+        elif trend == "Declining" and absences >= 2:
+            risk_flags.append({
+                "subject": name, "level": "Medium",
+                "reason": f"Declining trend correlates with {absences} absences.",
+            })
+            insights.append({
+                "cls": "warning",
+                "txt": f"{name}: declining trend ({lo}→{hi}) correlates with {absences} absences.",
+            })
+        elif trend == "Declining":
+            insights.append({"cls": "warning",
+                             "txt": f"{name}: consistent downward trend — average has dropped to {avg}."})
+        elif trend == "Improving":
+            insights.append({"cls": "success",
+                             "txt": f"{name}: positive trend — average improved from {lo} to {hi}."})
+
+    unexcused_total = sum(1 for log_entry in attendance.get("log", [])
+                          if log_entry.get("type") == "Unexcused")
+    if unexcused_total >= 2:
+        risk_flags.append({
+            "subject": "Attendance", "level": "High",
+            "reason": f"{unexcused_total} unexcused absences this semester.",
+        })
+
+    return risk_flags, insights
+
+
+# ─── Top-level analytics builder ────────────────────────────────────────────
+
 def build_analytics(data: dict) -> dict:
-    """Return a clean analytics payload ready for Chart.js."""
+    """Return the full canonical API payload. Frontend just renders it."""
     months = data.get("months", [])
     attendance = data.get("attendance", {})
-    subjects_with_analytics = []
+
+    enriched_subjects = []
     risk_counts = {"Low": 0, "Medium": 0, "High": 0}
-    subject_average_map = {}
-    grade_trends = []
-    absence_by_subject = []
 
-    for subject in data.get("subjects", []):
-        subject_average = calculate_subject_average(subject)
-        risk_level = assign_risk_level(subject_average, subject.get("absences", 0))
-        trend_label = get_grade_trend_label(subject.get("monthly_trend", []))
+    for s in data.get("subjects", []):
+        avg = calculate_subject_average(s)
+        trend = get_trend_label(s.get("monthly_trend", []))
+        risk = assign_risk_level(avg, s.get("absences", 0), trend)
+        risk_counts[risk] += 1
+        enriched_subjects.append({
+            **s,
+            "subject_average":    avg,
+            "risk_level":         risk,
+            "trend":              trend,
+            "category_breakdown": calculate_category_breakdown(s),
+            # Flat list of monthly averages — convenient for Chart.js.
+            "monthly":            [t.get("average", 0) for t in s.get("monthly_trend", [])],
+        })
 
-        subject_row = {
-            **subject,
-            "subject_average": subject_average,
-            "risk_level": risk_level,
-            "trend": trend_label,
-        }
-        subjects_with_analytics.append(subject_row)
-        risk_counts[risk_level] += 1
-        subject_average_map[subject["name"]] = subject_average
-        absence_by_subject.append({
-            "subject": subject["name"],
-            "absences": subject.get("absences", 0),
-        })
-        grade_trends.append({
-            "subject": subject["name"],
-            "color": subject.get("color"),
-            "data": [item.get("average", 0) for item in subject.get("monthly_trend", [])],
-        })
+    risk_flags, insights = build_risk_flags_and_insights(enriched_subjects, attendance)
 
     return {
-        "student": data.get("student", {}),
-        "months": months,
-        "gpa": calculate_gpa(data.get("subjects", [])),
-        "attendance": {
-            "summary": attendance.get("summary", {}),
-            "breakdown": attendance.get("breakdown", {}),
-            "monthly": attendance.get("monthly", []),
+        "student":       data.get("student", {}),
+        "months":        months,
+        "gpa":           calculate_gpa(enriched_subjects),
+        "subjects":      enriched_subjects,
+        "attendance":    {
+            "summary":   attendance.get("summary",   {"total_days": 0, "present_days": 0, "absent_days": 0}),
+            "breakdown": attendance.get("breakdown", {"excused": 0, "unexcused": 0, "late_arrivals": 0}),
+            "monthly":   attendance.get("monthly", []),
+            "log":       attendance.get("log", []),
         },
-        "subjects": subjects_with_analytics,
-        "risk_levels": risk_counts,
-        "charts": {
-            "grade_trends": {
-                "labels": months,
-                "datasets": grade_trends,
-            },
-            "attendance": {
-                "labels": [item.get("month") for item in attendance.get("monthly", [])],
-                "present": [item.get("present", 0) for item in attendance.get("monthly", [])],
-                "absent": [item.get("absent", 0) for item in attendance.get("monthly", [])],
-                "excused": [item.get("excused", 0) for item in attendance.get("monthly", [])],
-                "unexcused": [item.get("unexcused", 0) for item in attendance.get("monthly", [])],
-                "late_arrivals": [item.get("late_arrivals", 0) for item in attendance.get("monthly", [])],
-            },
-            "subject_averages": subject_average_map,
-            "absences_by_subject": absence_by_subject,
-            "risk_levels": risk_counts,
-        },
+        "behaviour":     data.get("behaviour", []),
+        "teacher_notes": data.get("teacher_notes", []),
+        "risk_levels":   risk_counts,
+        "risk_flags":    risk_flags,
+        "insights":      insights,
     }
 
 
+# ─── Routes ─────────────────────────────────────────────────────────────────
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    if "user" in session:
+        return render_template("index.html")
+    return redirect(url_for("login"))
 
 
-@app.route("/dashboard")
-def dashboard():
-    return render_template("dashboard.html")
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        data = request.get_json()
+        username = data.get("username", "").strip()
+        password = data.get("password", "").strip()
+        subdomain = data.get("subdomain", "").strip()
+
+        if not (username and password and subdomain):
+            return jsonify({"error": "All fields are required"}), 400
+
+        # Try to login with EduPage
+        result = load_data_from_edupage(username, password, subdomain)
+        if result is None:
+            return jsonify({"error": "Invalid credentials or EduPage unreachable"}), 401
+
+        # Store credentials in session
+        session["user"] = {
+            "username": username,
+            "password": password,
+            "subdomain": subdomain,
+        }
+        session.permanent = True
+        app.permanent_session_lifetime = 86400 * 7  # 7 days
+
+        return jsonify({"success": True}), 200
+
+    return render_template("login.html")
 
 
-@app.route("/api/data")
-def api_data():
-    raw, source = get_data()
-    enriched = build_analytics(raw)
-    enriched["source"] = source
-    return jsonify(enriched)
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"success": True}), 200
 
 
 @app.route("/api/analytics")
+@login_required
 def api_analytics():
-    """Return processed analytics. EduPage → SQLite → JSON (auto fallback)."""
     raw, source = get_data()
-    enriched = build_analytics(raw)
-    enriched["source"] = source
-    return jsonify(enriched)
+    payload = build_analytics(raw)
+    payload["source"] = source
+    return jsonify(payload)
 
 
 @app.route("/api/source")
+@login_required
 def api_source():
-    """Diagnostic — which data source is currently active and is EduPage configured?"""
-    edupage_ready = is_edupage_configured()
-    cache_age = (time.time() - _edupage_cache["fetched_at"]) if _edupage_cache["fetched_at"] else None
+    cache_key = _get_cache_key()
+    cache = _edupage_cache.get(cache_key, {})
+    fetched_at = cache.get("fetched_at", 0.0)
+    age = (time.time() - fetched_at) if fetched_at else None
     _, source = get_data()
     return jsonify({
         "source":              source,
-        "edupage_configured":  edupage_ready,
-        "edupage_last_ok":     _edupage_cache["data"] is not None,
-        "edupage_cache_age_s": round(cache_age, 1) if cache_age else None,
+        "edupage_configured":  True,
+        "edupage_last_ok":     cache.get("data") is not None,
+        "edupage_cache_age_s": round(age, 1) if age else None,
     })
 
 
 @app.route("/export/csv")
+@login_required
 def export_csv():
     raw, _ = get_data()
-    enriched = build_analytics(raw)
-    export_path = os.path.join(os.path.dirname(__file__), "student_analytics_export.csv")
-
-    import csv
-    with open(export_path, "w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Subject", "Average Grade", "Risk Level", "Risk Score", "Trend", "Absences", "Behaviour Marks"])
-
-        for subject in enriched.get("subjects", []):
-            analysis = subject.get("analysis", {})
-            writer.writerow([
-                subject.get("name", ""),
-                analysis.get("avg", ""),
-                analysis.get("risk", ""),
-                analysis.get("score", ""),
-                analysis.get("trend", ""),
-                subject.get("absences", 0),
-                subject.get("behaviour", 0)
-            ])
-
-    return send_file(export_path, as_attachment=True, download_name="student_analytics_export.csv")
-
-
-@app.route("/api/demo")
-def api_demo():
-    """Return processed analytics from the local demo dataset."""
-    raw, source = get_data()
-    enriched = build_analytics(raw)
-    enriched["source"] = source
-    return jsonify(enriched)
+    payload = build_analytics(raw)
+    student = payload["student"]
+    with open(EXPORT_PATH, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Student", "Class", "School", "Year", "Semester"])
+        w.writerow([student.get("name"), student.get("class"),
+                    student.get("school"), student.get("school_year"),
+                    student.get("semester")])
+        w.writerow([])
+        w.writerow(["Subject", "Teacher", "Average %", "Final Grade", "Risk Level", "Trend"])
+        for s in payload["subjects"]:
+            w.writerow([s["name"], s.get("teacher", "—"), s["subject_average"],
+                        s.get("final_grade", "—"), s["risk_level"], s["trend"]])
+    return send_file(EXPORT_PATH, as_attachment=True, download_name="student_analytics_export.csv")
 
 
 if __name__ == "__main__":
-    init_db()
-    seed_db_from_json()
     app.run(debug=True, port=5001)

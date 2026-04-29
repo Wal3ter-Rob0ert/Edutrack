@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EduTrack — Login</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --blue:#1d70b8;
+      --blue-dark:#003078;
+      --white:#ffffff;
+      --gray-100:#f3f2f1;
+      --gray-200:#e8e8e8;
+      --gray-300:#b1b4b6;
+      --gray-400:#6f777b;
+      --gray-500:#505a5f;
+      --black:#0b0c0c;
+      --red:#d4351c;
+      --red-bg:#fff2f1;
+      --green:#00703c;
+    }
+    html,body{height:100%;font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:var(--black);background:var(--gray-100)}
+    *:focus-visible{outline:3px solid #ffdd00;outline-offset:2px}
+    a{color:var(--blue);text-decoration:underline}
+    a:hover{color:var(--blue-dark)}
+
+    .login-container{
+      display:flex;align-items:center;justify-content:center;
+      min-height:100vh;padding:20px;
+    }
+
+    .login-box{
+      background:var(--white);border:2px solid var(--gray-200);
+      padding:40px;border-radius:8px;width:100%;max-width:450px;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .login-header{
+      text-align:center;margin-bottom:32px;
+    }
+
+    .login-header h1{
+      font-size:1.875rem;font-weight:700;margin-bottom:8px;color:var(--blue-dark)
+    }
+
+    .login-header p{
+      font-size:0.9375rem;color:var(--gray-500);margin-bottom:0;
+    }
+
+    .form-group{margin-bottom:20px}
+
+    .form-label{
+      display:block;font-weight:700;font-size:0.9375rem;
+      margin-bottom:6px;color:var(--black);
+    }
+
+    .form-input{
+      display:block;width:100%;
+      padding:10px 12px;font-size:1rem;font-family:inherit;
+      border:2px solid var(--gray-300);border-radius:4px;
+    }
+
+    .form-input:focus{
+      border-color:var(--blue);outline:none;
+    }
+
+    .form-hint{
+      font-size:0.875rem;color:var(--gray-500);margin-top:4px;
+    }
+
+    .btn{
+      display:inline-block;padding:11px 24px;font-size:1rem;font-weight:700;
+      cursor:pointer;border:2px solid transparent;font-family:inherit;
+      text-decoration:none;line-height:1.3;width:100%;text-align:center;
+      border-radius:4px;
+    }
+
+    .btn-primary{background:var(--blue);color:var(--white);border-color:var(--blue)}
+    .btn-primary:hover{background:var(--blue-dark);border-color:var(--blue-dark)}
+    .btn-primary:disabled{background:var(--gray-300);border-color:var(--gray-300);cursor:not-allowed}
+
+    .error-message{
+      background:var(--red-bg);border:2px solid var(--red);
+      color:var(--red);padding:12px 16px;border-radius:4px;
+      margin-bottom:24px;font-size:0.9375rem;display:none;
+    }
+
+    .error-message.show{display:block}
+
+    .divider{
+      text-align:center;margin:24px 0;color:var(--gray-400);
+      font-size:0.875rem;
+    }
+
+    .help-text{
+      background:var(--gray-100);padding:12px 16px;border-radius:4px;
+      font-size:0.875rem;color:var(--gray-500);margin-top:24px;
+      line-height:1.6;
+    }
+
+    .help-text strong{color:var(--black);display:block;margin-bottom:6px}
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-header">
+        <h1>EduTrack</h1>
+        <p>Student Analytics Platform</p>
+      </div>
+
+      <div class="error-message" id="errorMsg"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">EduPage Username</label>
+          <input
+            type="email"
+            id="username"
+            name="username"
+            class="form-input"
+            placeholder="your.email@school.edu"
+            required
+            autofocus
+          >
+          <div class="form-hint">Your school email address</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            class="form-input"
+            placeholder="••••••••"
+            required
+          >
+          <div class="form-hint">Your EduPage password</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="subdomain">School Subdomain</label>
+          <input
+            type="text"
+            id="subdomain"
+            name="subdomain"
+            class="form-input"
+            placeholder="e.g. quantum, school, myschool"
+            required
+          >
+          <div class="form-hint">The subdomain from your school's EduPage URL (e.g., quantum.edupage.org)</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
+      </form>
+
+      <div class="help-text">
+        <strong>Don't have EduPage credentials?</strong>
+        Contact your school administration for access to the student information system.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      errorMsg.classList.remove('show');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in...';
+
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            subdomain: document.getElementById('subdomain').value,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          window.location.href = '/';
+        } else {
+          errorMsg.textContent = data.error || 'Login failed. Please try again.';
+          errorMsg.classList.add('show');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Log in';
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.classList.add('show');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Log in';
+      }
+    });
+  </script>
+</body>
+</html>

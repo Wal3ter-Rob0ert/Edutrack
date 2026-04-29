@@ -3,5 +3,3 @@
 __pycache__/
 *.pyc
 venv/
-data/edutrack.db
-student_analytics_export.csv

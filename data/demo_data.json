@@ -1,10 +1,13 @@
 {
   "student": {
     "name": "Aidyn Abenov",
+    "id": "STU-2024-0042",
     "class": "11D",
     "school": "Quantum STEM School",
     "school_year": "2024/2025",
-    "semester": "Spring"
+    "semester": "Spring",
+    "tutor": "Andrey Leven",
+    "dob": "12 March 2007"
   },
   "months": [
     "January",
@@ -56,8 +59,29 @@
         "unexcused": 1,
         "late_arrivals": 1
       }
+    ],
+    "log": [
+      { "date": "Jan 15", "subject": "Mathematics", "type": "Unexcused",    "note": "No notification received" },
+      { "date": "Jan 22", "subject": "Chemistry",   "type": "Excused",      "note": "Medical certificate submitted" },
+      { "date": "Feb 03", "subject": "Mathematics", "type": "Unexcused",    "note": "No notification received" },
+      { "date": "Feb 14", "subject": "Chemistry",   "type": "Excused",      "note": "Family emergency" },
+      { "date": "Feb 19", "subject": "Physics",     "type": "Excused",      "note": "Medical certificate submitted" },
+      { "date": "Mar 06", "subject": "Chemistry",   "type": "Excused",      "note": "Medical certificate submitted" },
+      { "date": "Mar 21", "subject": "History",     "type": "Unexcused",    "note": "No notification received" },
+      { "date": "Apr 09", "subject": "Mathematics", "type": "Late Arrival", "note": "30 minutes late, no prior notice" },
+      { "date": "Apr 24", "subject": "Chemistry",   "type": "Unexcused",    "note": "No notification received" }
     ]
   },
+  "behaviour": [
+    { "date": "Jan 29", "type": "Note",         "subject": "Mathematics", "teacher": "Bagdat Doshanov", "desc": "Disrupting class during test preparation." },
+    { "date": "Feb 12", "type": "Concern",      "subject": "Chemistry",   "teacher": "Andrey Leven",    "desc": "Missed lab safety briefing due to absence. Required to attend makeup session." },
+    { "date": "Mar 17", "type": "Commendation", "subject": "English",     "teacher": "Aigul Sarken",    "desc": "Outstanding essay submission — selected for school publication." }
+  ],
+  "teacher_notes": [
+    { "from": "Bagdat Doshanov", "subject": "Mathematics", "date": "Apr 20", "note": "Aidyn shows difficulty with calculus fundamentals. Attendance gaps are contributing to missed content. Recommend additional tutoring sessions." },
+    { "from": "Aigul Sarken",    "subject": "English",     "date": "Apr 18", "note": "Excellent progress this semester. Aidyn demonstrates strong analytical skills. Encourage participation in the school debate team." },
+    { "from": "Andrey Leven",    "subject": "Chemistry",   "date": "Apr 15", "note": "Performance has declined since February. Absences are directly impacting lab practicals. Parents should be informed of current trajectory." }
+  ],
   "subjects": [
     {
       "id": "math",
